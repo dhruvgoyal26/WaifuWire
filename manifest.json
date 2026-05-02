@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "WaifuWire",
+  "version": "1.0",
+  "description": "Real-time anime character messaging extension.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open WaifuWire Chat"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["images/*.png", "images/*.jpg", "images/*.jpeg", "popup.html", "popup.css", "popup.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "permissions": [
+    "activeTab",
+    "storage"
+  ]
+}
