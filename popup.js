@@ -110,6 +110,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Delete Contact
+  document.getElementById('delete-contact-btn').addEventListener('click', () => {
+    const selectedContactId = contactsSelect.value;
+    if (selectedContactId) {
+      chrome.storage.local.get(['contacts'], (res) => {
+        let contacts = res.contacts || [];
+        contacts = contacts.filter(c => (typeof c === 'string' ? c !== selectedContactId : c.id !== selectedContactId));
+        chrome.storage.local.set({ contacts: contacts }, () => {
+          myContacts = contacts;
+          renderContacts();
+          if (targetInput.value === selectedContactId) {
+            targetInput.value = '';
+          }
+        });
+      });
+    }
+  });
+
   // Group Send
   document.getElementById('group-send-btn').addEventListener('click', () => {
     const input = document.getElementById('group-input');

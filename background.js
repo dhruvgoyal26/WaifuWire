@@ -63,6 +63,22 @@ function connectWebSocket() {
         });
       }
       
+      else if (data.type === 'USER_OFFLINE') {
+        const payload = data.payload;
+        // Don't show popup if we were just trying to fetch their profile
+        if (payload.action === 'GET_PROFILE' || payload.action === 'PROFILE_RESPONSE') {
+          return;
+        }
+        
+        broadcastToTabs({
+          type: 'INCOMING_MSG',
+          channel: 'system',
+          senderName: 'WaifuWire',
+          text: `User ${payload.targetId} is currently offline and did not receive your message.`,
+          isMe: false
+        });
+      }
+      
       else if (data.type === 'INCOMING_DIRECT_MSG') {
         const payload = data.payload;
         
