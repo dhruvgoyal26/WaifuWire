@@ -102,7 +102,7 @@
         const nameToDisplay = message.senderName && message.senderName !== "Anonymous" ? message.senderName : message.senderId;
         let prefix = 'DM';
         if (message.channel === 'group') prefix = 'Group';
-        else if (message.channel === 'custom_group') prefix = `Group: ${message.groupName}`;
+        else if (message.channel === 'custom_group') prefix = message.groupName;
         else if (message.channel === 'system') prefix = 'System';
         const title = `${prefix}: ${nameToDisplay}`;
         showWaifuPopup(message.text, title);

@@ -192,4 +192,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }, '*');
     }
   });
+
+  // Keep local storage changes perfectly in sync with the remote iframe in real-time
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      if (changes.groups || changes.contacts || changes.displayName) {
+        chrome.storage.local.get(['displayName', 'contacts', 'groups'], (res) => {
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              source: 'waifuwire-extension',
+              message: {
+                type: 'DATA_RESPONSE',
+                displayName: res.displayName,
+                contacts: res.contacts,
+                groups: res.groups || []
+              }
+            }, '*');
+          }
+        });
+      }
+    }
+  });
 });
