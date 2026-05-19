@@ -25,6 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
       
       else if (data.type === 'SAVE_GROUPS') {
         chrome.storage.local.set({ groups: data.groups }, () => {
+          // Sync groups to server in real-time
+          chrome.runtime.sendMessage({
+            type: 'SYNC_GROUPS_TO_SERVER',
+            groups: data.groups
+          });
+
           iframe.contentWindow.postMessage({
             source: 'waifuwire-extension',
             message: {

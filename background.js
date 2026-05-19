@@ -39,6 +39,17 @@ function connectWebSocket() {
       type: 'REGISTER',
       userId: myUserId
     }));
+
+    // Send local groups to server to ensure server is in sync (self-healing)
+    chrome.storage.local.get(['groups'], (res) => {
+      const localGroups = res.groups || [];
+      if (localGroups.length > 0 && socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'SYNC_GROUPS_TO_SERVER',
+          groups: localGroups
+        }));
+      }
+    });
     
     broadcastStatus();
   };
@@ -268,6 +279,16 @@ initialize();
 
 // Listen for messages from content script or popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'SYNC_GROUPS_TO_SERVER') {
+    if (isConnected && socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'SYNC_GROUPS_TO_SERVER',
+        groups: message.groups
+      }));
+    }
+    return true;
+  }
+
   if (message.type === 'CHECK_STATUS') {
     sendResponse({ connected: isConnected, userId: myUserId });
     return true;
