@@ -1,187 +1,173 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const statusIndicator = document.getElementById('status-indicator');
-  const myIdDisplay = document.getElementById('my-id-display');
-  const myNameInput = document.getElementById('my-name-input');
-  const contactsSelect = document.getElementById('private-contacts');
-  const targetInput = document.getElementById('private-target');
-  
-  let myDisplayName = "Anonymous";
-  let myContacts = [];
+  const iframe = document.getElementById('remote-iframe');
 
-  // Tabs Logic
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-    });
-  });
+  // Handle messages from the remote iframe (Render website)
+  window.addEventListener('message', (event) => {
+    // Only accept messages from our secure Render URL
+    if (event.origin !== 'https://waifuwire-server.onrender.com') return;
 
-  // Load User Data
-  chrome.storage.local.get(['displayName', 'contacts'], (res) => {
-    if (res.displayName) {
-      myDisplayName = res.displayName;
-      myNameInput.value = myDisplayName;
-    }
-    if (res.contacts) {
-      myContacts = res.contacts;
-      renderContacts();
-    }
-  });
-
-  function renderContacts() {
-    contactsSelect.innerHTML = '<option value="">-- Saved Contacts --</option>';
-    myContacts.forEach(contact => {
-      const opt = document.createElement('option');
-      if (typeof contact === 'string') {
-        opt.value = contact;
-        opt.textContent = contact;
-      } else {
-        opt.value = contact.id;
-        opt.textContent = `${contact.name} (${contact.id})`;
+    const data = event.data;
+    if (data && data.source === 'waifuwire-iframe') {
+      
+      if (data.type === 'GET_DATA') {
+        chrome.storage.local.get(['displayName', 'contacts', 'groups'], (res) => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'DATA_RESPONSE',
+              displayName: res.displayName,
+              contacts: res.contacts,
+              groups: res.groups || []
+            }
+          }, '*');
+        });
       }
-      contactsSelect.appendChild(opt);
-    });
-  }
-
-  // Check initial connection status and get ID
-  chrome.runtime.sendMessage({ type: 'CHECK_STATUS' }, (response) => {
-    if (response) {
-      if (response.connected) {
-        statusIndicator.classList.replace('disconnected', 'connected');
+      
+      else if (data.type === 'SAVE_GROUPS') {
+        chrome.storage.local.set({ groups: data.groups }, () => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'DATA_RESPONSE',
+              groups: data.groups
+            }
+          }, '*');
+        });
       }
-      if (response.userId) {
-        myIdDisplay.textContent = response.userId;
+      
+      else if (data.type === 'CHECK_STATUS') {
+        chrome.runtime.sendMessage({ type: 'CHECK_STATUS' }, (response) => {
+          if (response) {
+            iframe.contentWindow.postMessage({
+              source: 'waifuwire-extension',
+              message: {
+                type: 'STATUS_RESPONSE',
+                connected: response.connected,
+                userId: response.userId
+              }
+            }, '*');
+          }
+        });
       }
-    }
-  });
-
-  // Listen for status updates from background
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message.type === 'STATUS_UPDATE') {
-      if (message.connected) {
-        statusIndicator.classList.replace('disconnected', 'connected');
-      } else {
-        statusIndicator.classList.replace('connected', 'disconnected');
+      
+      else if (data.type === 'SAVE_NAME') {
+        chrome.storage.local.set({ displayName: data.name }, () => {
+          // Inform tabs of active message
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            if (tabs.length > 0) {
+              chrome.tabs.sendMessage(tabs[0].id, {
+                type: 'INCOMING_MSG',
+                channel: 'system',
+                senderName: 'WaifuWire',
+                text: `Display Name saved as: ${data.name}`
+              });
+            }
+          });
+          // Send response back to the iframe
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'DATA_RESPONSE',
+              displayName: data.name
+            }
+          }, '*');
+        });
       }
-    } else if (message.type === 'CONTACTS_UPDATED') {
-      chrome.storage.local.get(['contacts'], (res) => {
-        if (res.contacts) {
-          myContacts = res.contacts;
-          renderContacts();
-        }
-      });
-    }
-  });
-
-  // Save Name
-  document.getElementById('save-name-btn').addEventListener('click', () => {
-    const newName = myNameInput.value.trim();
-    if (newName) {
-      myDisplayName = newName;
-      chrome.storage.local.set({ displayName: myDisplayName }, () => {
+      
+      else if (data.type === 'ADD_CONTACT') {
+        chrome.runtime.sendMessage({ type: 'ADD_CONTACT', targetId: data.targetId });
+      }
+      
+      else if (data.type === 'DELETE_CONTACT') {
+        chrome.storage.local.get(['contacts'], (res) => {
+          let contacts = res.contacts || [];
+          contacts = contacts.filter(c => (typeof c === 'string' ? c !== data.targetId : c.id !== data.targetId));
+          chrome.storage.local.set({ contacts: contacts }, () => {
+            iframe.contentWindow.postMessage({
+              source: 'waifuwire-extension',
+              message: {
+                type: 'DATA_RESPONSE',
+                contacts: contacts
+              }
+            }, '*');
+          });
+        });
+      }
+      
+      else if (data.type === 'SEND_GROUP_MSG') {
+        chrome.runtime.sendMessage({
+          type: 'SEND_GROUP_MSG',
+          text: data.text,
+          senderName: data.senderName,
+          groupId: data.groupId,
+          groupName: data.groupName,
+          members: data.members
+        }, (response) => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'SEND_GROUP_MSG_RESPONSE',
+              success: response && response.success
+            }
+          }, '*');
+        });
+      }
+      
+      else if (data.type === 'LEAVE_GROUP') {
+        chrome.runtime.sendMessage({
+          type: 'LEAVE_GROUP',
+          groupId: data.groupId,
+          members: data.members
+        }, (response) => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'LEAVE_GROUP_RESPONSE',
+              success: response && response.success
+            }
+          }, '*');
+        });
+      }
+      
+      else if (data.type === 'SEND_DIRECT_MSG') {
+        chrome.runtime.sendMessage({
+          type: 'SEND_DIRECT_MSG_POPUP',
+          targetId: data.targetId,
+          text: data.text,
+          senderName: data.senderName
+        }, (response) => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'SEND_DIRECT_MSG_RESPONSE',
+              success: response && response.success
+            }
+          }, '*');
+        });
+      }
+      
+      else if (data.type === 'TEST_POPUP') {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           if (tabs.length > 0) {
             chrome.tabs.sendMessage(tabs[0].id, {
               type: 'INCOMING_MSG',
               channel: 'system',
-              senderName: 'WaifuWire',
-              text: `Display Name saved as: ${newName}`
+              senderName: data.senderName,
+              text: 'This is what a message looks like!'
             });
           }
         });
-      });
-    }
-  });
-
-  // Save Contact
-  document.getElementById('add-contact-btn').addEventListener('click', () => {
-    const newContact = targetInput.value.trim();
-    if (newContact) {
-      chrome.runtime.sendMessage({ type: 'ADD_CONTACT', targetId: newContact });
-    }
-  });
-
-  // Select Contact
-  contactsSelect.addEventListener('change', (e) => {
-    if (e.target.value) {
-      targetInput.value = e.target.value;
-    }
-  });
-
-  // Delete Contact
-  document.getElementById('delete-contact-btn').addEventListener('click', () => {
-    const selectedContactId = contactsSelect.value;
-    if (selectedContactId) {
-      chrome.storage.local.get(['contacts'], (res) => {
-        let contacts = res.contacts || [];
-        contacts = contacts.filter(c => (typeof c === 'string' ? c !== selectedContactId : c.id !== selectedContactId));
-        chrome.storage.local.set({ contacts: contacts }, () => {
-          myContacts = contacts;
-          renderContacts();
-          if (targetInput.value === selectedContactId) {
-            targetInput.value = '';
-          }
-        });
-      });
-    }
-  });
-
-  // Group Send
-  document.getElementById('group-send-btn').addEventListener('click', () => {
-    const input = document.getElementById('group-input');
-    const text = input.value.trim();
-    if (!text) return;
-
-    chrome.runtime.sendMessage({
-      type: 'SEND_GROUP_MSG',
-      text: text,
-      senderName: myDisplayName
-    }, (response) => {
-      if (response && response.success) {
-        input.value = '';
-        window.close();
-      } else {
-        alert('Failed to send. Is the server running?');
       }
-    });
+    }
   });
 
-  // Private Send
-  document.getElementById('private-send-btn').addEventListener('click', () => {
-    const targetId = targetInput.value.trim();
-    const input = document.getElementById('private-input');
-    const text = input.value.trim();
-    
-    if (!text || !targetId) return;
-
-    chrome.runtime.sendMessage({
-      type: 'SEND_DIRECT_MSG_POPUP',
-      targetId: targetId,
-      text: text,
-      senderName: myDisplayName
-    }, (response) => {
-      if (response && response.success) {
-        input.value = '';
-        window.close();
-      } else {
-        alert('Failed to send private message.');
-      }
-    });
-  });
-
-  // Test Popup Button
-  document.getElementById('test-popup-btn').addEventListener('click', () => {
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs.length > 0) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: 'INCOMING_MSG',
-          channel: 'system',
-          senderName: myDisplayName,
-          text: 'This is what a message looks like!'
-        });
-      }
-    });
+  // Handle messages from the extension background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.postMessage({
+        source: 'waifuwire-extension',
+        message: message
+      }, '*');
+    }
   });
 });

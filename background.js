@@ -63,6 +63,75 @@ function connectWebSocket() {
         });
       }
       
+      else if (data.type === 'INCOMING_CUSTOM_GROUP_MSG') {
+        const { groupId, groupName, members, payload } = data;
+        
+        // Auto-save group if we don't have it locally
+        chrome.storage.local.get(['groups'], (res) => {
+          let groups = res.groups || [];
+          const exists = groups.some(g => g.id === groupId);
+          if (!exists) {
+            groups.push({ id: groupId, name: groupName, members: members });
+            chrome.storage.local.set({ groups: groups }, () => {
+              broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+            });
+          } else {
+            let updated = false;
+            groups = groups.map(g => {
+              if (g.id === groupId) {
+                g.members = members;
+                g.name = groupName;
+                updated = true;
+              }
+              return g;
+            });
+            if (updated) {
+              chrome.storage.local.set({ groups: groups }, () => {
+                broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+              });
+            }
+          }
+        });
+
+        broadcastToTabs({
+          type: 'INCOMING_MSG',
+          channel: 'custom_group',
+          groupId: groupId,
+          groupName: groupName,
+          senderId: payload.senderId,
+          senderName: payload.senderName,
+          text: payload.text,
+          isMe: payload.senderId === myUserId
+        });
+      }
+      
+      else if (data.type === 'INCOMING_LEAVE_GROUP') {
+        const { groupId, leavingUserId } = data;
+        chrome.storage.local.get(['groups'], (res) => {
+          let groups = res.groups || [];
+          groups = groups.map(g => {
+            if (g.id === groupId) {
+              g.members = g.members.filter(m => m !== leavingUserId);
+            }
+            return g;
+          });
+          chrome.storage.local.set({ groups: groups }, () => {
+            broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+          });
+        });
+
+        broadcastToTabs({
+          type: 'INCOMING_MSG',
+          channel: 'custom_group',
+          groupId: groupId,
+          groupName: 'System Notice',
+          senderId: 'system',
+          senderName: 'WaifuWire',
+          text: `A member (${leavingUserId}) has left the group.`,
+          isMe: false
+        });
+      }
+      
       else if (data.type === 'USER_OFFLINE') {
         const payload = data.payload;
         // Don't show popup if we were just trying to fetch their profile
@@ -148,13 +217,14 @@ function connectWebSocket() {
   };
 }
 
-// Send a message to all open tabs so the UI updates everywhere
+// Send a message to all open tabs and internal extension contexts so the UI updates everywhere
 function broadcastToTabs(msg) {
   chrome.tabs.query({}, (tabs) => {
     tabs.forEach(tab => {
       chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
     });
   });
+  chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
 function broadcastStatus() {
@@ -175,14 +245,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.type === 'SEND_GROUP_MSG') {
     if (isConnected && socket.readyState === WebSocket.OPEN) {
+      if (message.groupId) {
+        socket.send(JSON.stringify({
+          type: 'CUSTOM_GROUP_MSG',
+          groupId: message.groupId,
+          groupName: message.groupName,
+          members: message.members,
+          payload: {
+            senderId: myUserId,
+            senderName: message.senderName,
+            text: message.text
+          }
+        }));
+      } else {
+        socket.send(JSON.stringify({
+          type: 'GROUP_MSG',
+          payload: {
+            senderId: myUserId,
+            senderName: message.senderName,
+            text: message.text
+          }
+        }));
+      }
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false });
+    }
+    return true;
+  }
+  
+  if (message.type === 'LEAVE_GROUP') {
+    if (isConnected && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({
-        type: 'GROUP_MSG',
-        payload: {
-          senderId: myUserId,
-          senderName: message.senderName,
-          text: message.text
-        }
+        type: 'LEAVE_GROUP',
+        groupId: message.groupId,
+        leavingUserId: myUserId,
+        members: message.members
       }));
+      
+      // Update local storage
+      chrome.storage.local.get(['groups'], (res) => {
+        let groups = res.groups || [];
+        groups = groups.filter(g => g.id !== message.groupId);
+        chrome.storage.local.set({ groups: groups }, () => {
+          broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+        });
+      });
       sendResponse({ success: true });
     } else {
       sendResponse({ success: false });
