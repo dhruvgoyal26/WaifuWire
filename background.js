@@ -75,14 +75,14 @@ function connectWebSocket() {
       }
       
       else if (data.type === 'INCOMING_CUSTOM_GROUP_MSG') {
-        const { groupId, groupName, members, payload } = data;
+        const { groupId, groupName, members, creator, payload } = data;
         
         // Auto-save group if we don't have it locally
         chrome.storage.local.get(['groups'], (res) => {
           let groups = res.groups || [];
           const exists = groups.some(g => g.id === groupId);
           if (!exists) {
-            groups.push({ id: groupId, name: groupName, members: members });
+            groups.push({ id: groupId, name: groupName, creator: creator || null, members: members });
             chrome.storage.local.set({ groups: groups }, () => {
               broadcastToTabs({ type: 'CONTACTS_UPDATED' });
             });
@@ -92,6 +92,9 @@ function connectWebSocket() {
               if (g.id === groupId) {
                 g.members = members;
                 g.name = groupName;
+                if (creator) {
+                  g.creator = creator;
+                }
                 updated = true;
               }
               return g;
@@ -131,7 +134,7 @@ function connectWebSocket() {
               const localGrp = localGroups[index];
               const membersChanged = localGrp.members.length !== serverGrp.members.length || 
                                     !localGrp.members.every(m => serverGrp.members.includes(m));
-              if (localGrp.name !== serverGrp.name || membersChanged) {
+              if (localGrp.name !== serverGrp.name || localGrp.creator !== serverGrp.creator || membersChanged) {
                 localGroups[index] = serverGrp;
                 modified = true;
               }
@@ -169,6 +172,25 @@ function connectWebSocket() {
           senderId: 'system',
           senderName: 'WaifuWire',
           text: `A member (${leavingUserId}) has left the group.`,
+          isMe: false
+        });
+      }
+      
+      else if (data.type === 'INCOMING_DELETE_GROUP') {
+        const { groupId } = data;
+        chrome.storage.local.get(['groups'], (res) => {
+          let groups = res.groups || [];
+          groups = groups.filter(g => g.id !== groupId);
+          chrome.storage.local.set({ groups: groups }, () => {
+            broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+          });
+        });
+
+        broadcastToTabs({
+          type: 'INCOMING_MSG',
+          channel: 'system',
+          senderName: 'WaifuWire',
+          text: `A custom group you were in has been deleted by its creator.`,
           isMe: false
         });
       }
@@ -331,6 +353,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         type: 'LEAVE_GROUP',
         groupId: message.groupId,
         leavingUserId: myUserId,
+        members: message.members
+      }));
+      
+      // Update local storage
+      chrome.storage.local.get(['groups'], (res) => {
+        let groups = res.groups || [];
+        groups = groups.filter(g => g.id !== message.groupId);
+        chrome.storage.local.set({ groups: groups }, () => {
+          broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+        });
+      });
+      sendResponse({ success: true });
+    } else {
+      sendResponse({ success: false });
+    }
+    return true;
+  }
+
+  if (message.type === 'DELETE_GROUP') {
+    if (isConnected && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        type: 'DELETE_GROUP',
+        groupId: message.groupId,
         members: message.members
       }));
       

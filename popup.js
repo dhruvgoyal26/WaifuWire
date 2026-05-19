@@ -135,6 +135,22 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
       
+      else if (data.type === 'DELETE_GROUP') {
+        chrome.runtime.sendMessage({
+          type: 'DELETE_GROUP',
+          groupId: data.groupId,
+          members: data.members
+        }, (response) => {
+          iframe.contentWindow.postMessage({
+            source: 'waifuwire-extension',
+            message: {
+              type: 'DELETE_GROUP_RESPONSE',
+              success: response && response.success
+            }
+          }, '*');
+        });
+      }
+      
       else if (data.type === 'SEND_DIRECT_MSG') {
         chrome.runtime.sendMessage({
           type: 'SEND_DIRECT_MSG_POPUP',
