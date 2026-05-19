@@ -105,6 +105,36 @@ function connectWebSocket() {
         });
       }
       
+      else if (data.type === 'SYNC_GROUPS') {
+        const { groups } = data;
+        chrome.storage.local.get(['groups'], (res) => {
+          let localGroups = res.groups || [];
+          let modified = false;
+
+          groups.forEach(serverGrp => {
+            const index = localGroups.findIndex(g => g.id === serverGrp.id);
+            if (index === -1) {
+              localGroups.push(serverGrp);
+              modified = true;
+            } else {
+              const localGrp = localGroups[index];
+              const membersChanged = localGrp.members.length !== serverGrp.members.length || 
+                                    !localGrp.members.every(m => serverGrp.members.includes(m));
+              if (localGrp.name !== serverGrp.name || membersChanged) {
+                localGroups[index] = serverGrp;
+                modified = true;
+              }
+            }
+          });
+
+          if (modified) {
+            chrome.storage.local.set({ groups: localGroups }, () => {
+              broadcastToTabs({ type: 'CONTACTS_UPDATED' });
+            });
+          }
+        });
+      }
+      
       else if (data.type === 'INCOMING_LEAVE_GROUP') {
         const { groupId, leavingUserId } = data;
         chrome.storage.local.get(['groups'], (res) => {
