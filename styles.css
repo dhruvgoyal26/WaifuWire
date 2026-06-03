@@ -1,6 +1,19 @@
 /* -----------------------------------
    Anime Popups (Slide in from Bottom)
 ----------------------------------- */
+.waifuwire-container,
+.waifuwire-container * {
+  box-sizing: content-box !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: normal !important;
+  max-height: none !important;
+  max-width: none !important;
+  min-height: 0 !important;
+  min-width: 0 !important;
+  height: auto !important;
+  width: auto !important;
+}
 .waifuwire-container {
   position: fixed;
   bottom: 20px;
@@ -14,50 +27,50 @@
 }
 
 .waifuwire-container.show {
-  right: 20px;
+  right: 20px !important;
 }
 
 .waifuwire-character {
-  height: 250px;
-  pointer-events: auto;
-  filter: drop-shadow(0px 5px 15px rgba(0,0,0,0.3));
+  height: 250px !important;
+  pointer-events: auto !important;
+  filter: drop-shadow(0px 5px 15px rgba(0,0,0,0.3)) !important;
 }
 
 .waifuwire-bubble-container {
-  position: relative;
-  margin-bottom: 180px;
+  position: relative !important;
+  margin-bottom: 180px !important;
 }
 
 .waifuwire-bubble-title {
-  background-color: #0a0a0a;
-  color: white;
-  padding: 4px 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: bold;
-  margin-bottom: -10px;
-  margin-left: 15px;
-  position: relative;
-  z-index: 2;
-  display: inline-block;
-  font-family: 'Segoe UI', sans-serif;
-  border: 1px solid #333;
+  background-color: #0a0a0a !important;
+  color: white !important;
+  padding: 4px 10px !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  font-weight: bold !important;
+  margin-bottom: -10px !important;
+  margin-left: 15px !important;
+  position: relative !important;
+  z-index: 2 !important;
+  display: inline-block !important;
+  font-family: 'Segoe UI', sans-serif !important;
+  border: 1px solid #333 !important;
 }
 
 .waifuwire-bubble {
-  background-color: #0a0a0a;
-  color: #fff;
-  border-radius: 20px;
-  padding: 15px 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  font-size: 16px;
-  max-width: 250px;
-  word-wrap: break-word;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-  border: 1px solid #333;
-  pointer-events: auto;
-  position: relative;
-  z-index: 1;
+  background-color: #0a0a0a !important;
+  color: #fff !important;
+  border-radius: 20px !important;
+  padding: 15px 20px !important;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+  font-size: 16px !important;
+  max-width: 250px !important;
+  word-wrap: break-word !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid #333 !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 1 !important;
 }
 
 /* The thinking circles */
@@ -104,5 +117,38 @@
 }
 
 .waifuwire-iframe-sidebar.open {
-  right: 0;
+  right: 0 !important;
+}
+
+/* Toggle Button */
+.waifuwire-sidebar-toggle-btn {
+  position: fixed !important;
+  top: 50% !important;
+  right: 0 !important;
+  transform: translateY(-50%) !important;
+  width: 35px !important;
+  height: 50px !important;
+  background-color: #0a0a0a !important;
+  color: white !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  border-top-left-radius: 8px !important;
+  border-bottom-left-radius: 8px !important;
+  border: 1px solid #333 !important;
+  border-right: none !important;
+  z-index: 2147483647 !important;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.5) !important;
+  transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+  user-select: none !important;
+}
+
+.waifuwire-sidebar-toggle-btn:hover {
+  background-color: #1a1a1a !important;
+}
+
+.waifuwire-sidebar-toggle-btn.open {
+  right: 320px !important;
 }

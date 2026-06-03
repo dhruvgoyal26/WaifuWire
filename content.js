@@ -36,6 +36,7 @@
 
 
   let timeoutId = null;
+  let isHovered = false;
 
   // Anime Popup Logic
   function showWaifuPopup(text, title) {
@@ -75,6 +76,26 @@
           document.body.appendChild(container);
         });
       }
+
+      // Hover to pause logic
+      container.addEventListener('mouseenter', () => {
+        isHovered = true;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+      });
+
+      container.addEventListener('mouseleave', () => {
+        isHovered = false;
+        if (timeoutId) clearTimeout(timeoutId);
+        // Fade out after 3 seconds of leaving, unless user hovers again
+        timeoutId = setTimeout(() => {
+          if (!isHovered) {
+            container.classList.remove('show');
+          }
+        }, 3000);
+      });
     }
     
     const randomImageId = Math.floor(Math.random() * 8) + 1;
@@ -91,7 +112,20 @@
     setTimeout(() => { container.classList.add('show'); }, 10);
     
     if (timeoutId) clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => { container.classList.remove('show'); }, 7000);
+    
+    if (!isHovered) {
+      // Calculate dynamic reading time: 450ms per word + 5 seconds base cognitive buffer time
+      const wordCount = text.trim().split(/\s+/).length;
+      const calculatedTimeout = 5000 + (wordCount * 450);
+      // Ensure the message stays for at least 8 seconds and at most 30 seconds
+      const finalTimeout = Math.min(30000, Math.max(8000, calculatedTimeout));
+      
+      timeoutId = setTimeout(() => {
+        if (!isHovered) {
+          container.classList.remove('show');
+        }
+      }, finalTimeout);
+    }
   }
 
   // Background Listener
@@ -112,12 +146,14 @@
 
   // Hover Sidebar Logic
   let iframeSidebar = null;
+  let toggleBtn = null;
   let isIframeOpen = false;
 
   function initIframeSidebar() {
     if (isPdfPage()) return;
     if (!document.body || document.getElementById('ww-iframe-sidebar')) return;
     
+    // Create the sidebar iframe
     iframeSidebar = document.createElement('iframe');
     iframeSidebar.id = 'ww-iframe-sidebar';
     iframeSidebar.src = chrome.runtime.getURL('popup.html');
@@ -125,14 +161,32 @@
     iframeSidebar.className = 'waifuwire-iframe-sidebar';
     document.body.appendChild(iframeSidebar);
     
-    document.addEventListener('mousemove', (e) => {
-      if (isPdfPage()) return;
-      if (!isIframeOpen && window.innerWidth - e.clientX <= 10) {
-        isIframeOpen = true;
+    // Create the toggle button
+    toggleBtn = document.createElement('div');
+    toggleBtn.id = 'ww-sidebar-toggle-btn';
+    toggleBtn.className = 'waifuwire-sidebar-toggle-btn';
+    toggleBtn.innerHTML = '&#9776;'; // Hamburger icon
+    document.body.appendChild(toggleBtn);
+    
+    // Toggle logic
+    toggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // prevent document click
+      isIframeOpen = !isIframeOpen;
+      if (isIframeOpen) {
         iframeSidebar.classList.add('open');
-      } else if (isIframeOpen && window.innerWidth - e.clientX > 350) {
+        toggleBtn.classList.add('open');
+      } else {
+        iframeSidebar.classList.remove('open');
+        toggleBtn.classList.remove('open');
+      }
+    });
+
+    // Close when clicking outside the sidebar
+    document.addEventListener('click', (e) => {
+      if (isIframeOpen && !iframeSidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
         isIframeOpen = false;
         iframeSidebar.classList.remove('open');
+        toggleBtn.classList.remove('open');
       }
     });
   }
